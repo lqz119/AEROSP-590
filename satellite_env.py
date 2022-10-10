@@ -11,17 +11,17 @@ class SatelliteEnv(gym.Env):
     super(SatelliteEnv, self).__init__()
     #self.reward_range = (-1000, 10000) 
     self.action_space = spaces.Discrete(3)  # 0 for off, 1 for right pulse, 2 for left pulse,
-    self.observation_space = spaces.Discrete(3)
+    self.space_dimension = 20   # 1D length in space( assume the asteroid is centered at self.space_dimension+self.asteroid_radius)
     self.dv = 0.1     # 0.1 m/s per impulse
-    self.dt = 1       # 1s per time step
-    self.asteroid_radius = 1    # 1m
-
+    self.dt = 0.1       # 0.1s per time step
+    self.observation_space = spaces.Discrete(int(self.space_dimension//self.dt))     # buggy here
+    self.asteroid_radius = 0.5    
 
 
   def reset(self):
     # Reset the state of the environment to an initial state
-    self.satellit_pos = random.randint(1, 100)    # initial position anywhere at 1 - 100
-    self.vel = random.uniform(0, 5)  # inital 1d velocity anywhere in 0 - 5
+    self.satellit_pos = random.randint(0, 0.1*self.space_dimension)    # random initial position 
+    self.vel = random.uniform(0, self.dv*10)  # random inital velocity 
     self.time_spent = 0
     self.state = (self.satellit_pos, self.vel, self.time_spent)
     return np.array(self.state, dtype=np.float16), {}
@@ -37,17 +37,18 @@ class SatelliteEnv(gym.Env):
 
     self.satellit_pos += self.vel * self.dt
 
-    self.state = (self.satellit_pos, self.vel, self.time_spent)
+    #self.state = (self.satellit_pos, self.vel, self.time_spent)          # continous space
+    self.state = (round(self.satellit_pos,1), round(self.vel,1), round(self.time_spent,1))  # discrete space
 
     terminated = bool(
             self.satellit_pos <= 0
-            or self.satellit_pos > 500 - self.asteroid_radius                                         # asteroid has 1 meter radius
-            or abs(self.vel) >= 6 * self.asteroid_radius                                              # velocity limit to 3 times of asteroid diameter
-            or 500 - self.asteroid_radius - 3 <= self.satellit_pos <= 500 - self.asteroid_radius      # success!
+            or self.satellit_pos >= self.space_dimension                                  # asteroid has 1 meter radius
+            or abs(self.vel) >= 3 * self.asteroid_radius                                  # velocity limit to 3 times of asteroid radius
+            or self.space_dimension - self.asteroid_radius * 3 <= self.satellit_pos       # success!
         )
 
     if terminated:
-      if 500 - self.asteroid_radius - 3 <= self.satellit_pos <= 500 - self.asteroid_radius:
+      if self.space_dimension - self.asteroid_radius * 3 <= self.satellit_pos:
         reward = 0
       else:
         reward = -10000.0
